@@ -1,11 +1,9 @@
-// This is a web-compatible version of BiometricAuth
-// For a real app, you would use the Web Authentication API or a similar solution
+// Web fallback for BiometricAuth.native.ts
 
 // Check if device has biometric hardware
 export const hasBiometricHardware = async (): Promise<boolean> => {
   try {
-    // In a real implementation, you would check for Web Authentication API support
-    // or other biometric capabilities
+    // In a web environment, we'll simulate no biometric hardware
     return false;
   } catch (error) {
     console.error("Error checking biometric hardware:", error);
@@ -19,7 +17,7 @@ export const isBiometricEnrolled = async (): Promise<boolean> => {
     const hasHardware = await hasBiometricHardware();
     if (!hasHardware) return false;
 
-    // In a real implementation, you would check if the user has enrolled biometrics
+    // In a web environment, we'll simulate no biometric enrollment
     return false;
   } catch (error) {
     console.error("Error checking biometric enrollment:", error);
@@ -30,7 +28,7 @@ export const isBiometricEnrolled = async (): Promise<boolean> => {
 // Get available biometric types
 export const getBiometricTypes = async (): Promise<string[]> => {
   try {
-    // In a real implementation, you would return the available biometric types
+    // In a web environment, we'll return an empty array
     return [];
   } catch (error) {
     console.error("Error getting biometric types:", error);
@@ -56,9 +54,8 @@ export const authenticateWithBiometrics = async (
       return { success: false, error: "No biometrics enrolled" };
     }
 
-    // In a real implementation, you would use the Web Authentication API
-    // or a similar solution to authenticate the user
-    return { success: false, error: "Not implemented" };
+    // In a web environment, we'll simulate authentication failure
+    return { success: false, error: "Not implemented in web environment" };
   } catch (error) {
     console.error("Error authenticating with biometrics:", error);
     return {

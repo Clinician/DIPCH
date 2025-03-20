@@ -12,26 +12,6 @@ import { loadSampleData } from "@/lib/sample-data";
 import { getAllProcedures } from "@/lib/db";
 import { LanguageSwitcher } from "../ui/language-switcher";
 
-interface ProcedureData {
-  id?: string;
-  date?: string;
-  surgeon?: string;
-  hospital?: string;
-  procedureType?: string;
-  notes?: string;
-  implants?: ImplantData[];
-}
-
-interface ImplantData {
-  id?: string;
-  name?: string;
-  manufacturer?: string;
-  serialNumber?: string;
-  type?: string;
-  location?: string;
-  notes?: string;
-}
-
 interface DashboardProps {
   userName?: string;
   onLogout?: () => void;
@@ -48,13 +28,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     "home" | "scan" | "list" | "form" | "settings"
   >("home");
   const [scannerOpen, setScannerOpen] = useState(false);
-  // Local state for active view
-  const [localProcedures, setLocalProcedures] = useState<ProcedureData[]>([]);
-
-  // Sync with context
-  useEffect(() => {
-    setLocalProcedures(procedures);
-  }, [procedures]);
 
   // Load sample data if no procedures exist
   useEffect(() => {
@@ -85,14 +58,14 @@ const Dashboard: React.FC<DashboardProps> = ({
     setActiveView("settings");
   };
 
-  const handleScanComplete = (data: ProcedureData) => {
+  const handleScanComplete = (data: any) => {
     // Add the scanned procedure to the context
     addProcedure({ ...data, id: `proc-${Date.now()}` });
     setScannerOpen(false);
     setActiveView("home"); // Return to home after scanning
   };
 
-  const handleSaveProcedure = (data: ProcedureData) => {
+  const handleSaveProcedure = (data: any) => {
     // Add the manually entered procedure to the context
     addProcedure({ ...data, id: `proc-${Date.now()}` });
     setActiveView("home"); // Return to home after saving
@@ -183,7 +156,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         {activeView === "list" && (
           <ProcedureList
-            procedures={localProcedures}
+            procedures={procedures}
             onViewProcedure={handleViewProcedure}
             onExportProcedure={handleExportProcedure}
             onDeleteProcedure={handleDeleteProcedure}

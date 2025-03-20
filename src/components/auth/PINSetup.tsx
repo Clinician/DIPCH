@@ -1,169 +1,417 @@
-import React, { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { useLanguage } from "../../context/LanguageContext";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Shield, CheckCircle, AlertCircle, ArrowLeft } from "lucide-react";
+import React, { useState, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  Vibration,
+} from "react-native";
+import { useTranslation } from "../hooks/useTranslation";
 
 interface PINSetupProps {
   onComplete?: (pin: string) => void;
   onCancel?: () => void;
   onReturnToSettings?: () => void;
+  minLength?: number;
 }
 
-const PINSetup = ({
+const PINSetup: React.FC<PINSetupProps> = ({
   onComplete = () => {},
   onCancel = () => {},
   onReturnToSettings = () => {},
-}: PINSetupProps) => {
-  const { t } = useLanguage();
+  minLength = 4,
+}) => {
+  const { t } = useTranslation();
   const [pin, setPin] = useState<string>("");
   const [confirmPin, setConfirmPin] = useState<string>("");
+  const [stage, setStage] = useState<"create" | "confirm">("create");
   const [error, setError] = useState<string>("");
   const [success, setSuccess] = useState<boolean>(false);
-  const navigate = useNavigate();
-  const location = useLocation();
-  const returnToSettings = location.state?.returnToSettings;
 
-  // Reset error when inputs change
-  useEffect(() => {
-    if (error) setError("");
-  }, [pin, confirmPin]);
+  // Animation values
+  const shakeAnimation = useRef(new Animated.Value(0)).current;
+  const successOpacity = useRef(new Animated.Value(0)).current;
 
-  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    // Only allow numbers and limit to 6 digits
-    if (/^\d*$/.test(value) && value.length <= 6) {
-      setPin(value);
-    }
-  };
+  // Handle number input
+  const handleNumberPress = (num: number) => {
+    if (success) return;
 
-  const handleConfirmPinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    // Only allow numbers and limit to 6 digits
-    if (/^\d*$/.test(value) && value.length <= 6) {
-      setConfirmPin(value);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validate PIN
-    if (pin.length < 4) {
-      setError("PIN must be at least 4 digits");
-      return;
-    }
-
-    if (pin !== confirmPin) {
-      setError("PINs do not match");
-      return;
-    }
-
-    // Show success state briefly before completing
-    setSuccess(true);
-    setTimeout(() => {
-      onComplete(pin);
-    }, 1000);
-  };
-
-  const handleReturn = () => {
-    if (returnToSettings) {
-      navigate("/settings");
+    if (stage === "create") {
+      if (pin.length < 6) {
+        setPin((prev) => prev + num.toString());
+      }
     } else {
-      onReturnToSettings();
+      if (confirmPin.length < 6) {
+        setConfirmPin((prev) => prev + num.toString());
+      }
     }
+  };
+
+  // Handle backspace
+  const handleBackspace = () => {
+    if (success) return;
+
+    if (stage === "create") {
+      setPin((prev) => prev.slice(0, -1));
+    } else {
+      setConfirmPin((prev) => prev.slice(0, -1));
+    }
+    setError("");
+  };
+
+  // Handle PIN creation
+  const handlePinCreation = () => {
+    // Check if PIN meets minimum length
+    if (pin.length < minLength) {
+      setError(t("auth.pin.min"));
+      shakeAndVibrate();
+      return;
+    }
+
+    // Move to confirmation stage
+    setStage("confirm");
+    setError("");
+  };
+
+  // Handle PIN confirmation
+  const handlePinConfirmation = () => {
+    if (pin === confirmPin) {
+      // Success
+      setSuccess(true);
+      Animated.timing(successOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+
+      // Notify parent component
+      setTimeout(() => {
+        onComplete(pin);
+      }, 1500);
+    } else {
+      // PINs don't match
+      setError(t("auth.pin.match"));
+      setConfirmPin("");
+      shakeAndVibrate();
+    }
+  };
+
+  // Shake animation and vibration
+  const shakeAndVibrate = () => {
+    Animated.sequence([
+      Animated.timing(shakeAnimation, {
+        toValue: 10,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: -10,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: 10,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: 0,
+        duration: 50,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    Vibration.vibrate(300);
+  };
+
+  // Handle continue button press
+  const handleContinue = () => {
+    if (stage === "create") {
+      if (pin.length >= minLength) {
+        handlePinCreation();
+      } else {
+        setError(t("auth.pin.min"));
+        shakeAndVibrate();
+      }
+    } else {
+      if (confirmPin.length === pin.length) {
+        handlePinConfirmation();
+      } else {
+        setError(t("auth.pin.match"));
+        shakeAndVibrate();
+      }
+    }
+  };
+
+  // Render PIN dots
+  const renderPinDots = () => {
+    const currentPin = stage === "create" ? pin : confirmPin;
+    const dots = [];
+    for (let i = 0; i < 6; i++) {
+      dots.push(
+        <View
+          key={i}
+          style={[
+            styles.pinDot,
+            i < currentPin.length ? styles.pinDotFilled : null,
+          ]}
+        />,
+      );
+    }
+    return dots;
+  };
+
+  // Render number pad
+  const renderNumberPad = () => {
+    const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, null, 0, "backspace"];
+    return numbers.map((num, index) => {
+      if (num === null) {
+        return <View key={index} style={styles.numberButton} />;
+      }
+
+      if (num === "backspace") {
+        const currentPin = stage === "create" ? pin : confirmPin;
+        return (
+          <TouchableOpacity
+            key={index}
+            style={styles.numberButton}
+            onPress={handleBackspace}
+            disabled={success || currentPin.length === 0}
+          >
+            <Text style={styles.numberText}>←</Text>
+          </TouchableOpacity>
+        );
+      }
+
+      const currentPin = stage === "create" ? pin : confirmPin;
+      return (
+        <TouchableOpacity
+          key={index}
+          style={styles.numberButton}
+          onPress={() => handleNumberPress(num as number)}
+          disabled={success || currentPin.length >= 6}
+        >
+          <Text style={styles.numberText}>{num}</Text>
+        </TouchableOpacity>
+      );
+    });
   };
 
   return (
-    <div className="flex flex-col items-center justify-center w-full h-full p-6 bg-background">
-      <div className="w-full max-w-md p-6 space-y-6 bg-card rounded-lg shadow-lg">
-        <div className="flex flex-col items-center text-center space-y-2">
-          <div className="p-3 rounded-full bg-primary/10">
-            <Shield className="w-8 h-8 text-primary" />
-          </div>
-          <h2 className="text-2xl font-bold">{t("auth.pin.setup.title")}</h2>
-          <p className="text-muted-foreground">
-            {t("auth.pin.setup.description")}
-          </p>
-        </div>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>{t("auth.pin.setup.title")}</Text>
+        <Text style={styles.subtitle}>
+          {stage === "create"
+            ? t("auth.pin.setup.description")
+            : t("auth.pin.setup.confirm")}
+        </Text>
+      </View>
 
-        {success ? (
-          <div className="flex flex-col items-center space-y-4 py-6">
-            <CheckCircle className="w-16 h-16 text-green-500" />
-            <p className="text-lg font-medium">PIN successfully created!</p>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleReturn}
-              className="flex items-center justify-center gap-2 mt-4"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Return to Settings
-            </Button>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="pin" className="text-sm font-medium">
-                Enter PIN
-              </label>
-              <Input
-                id="pin"
-                type="password"
-                placeholder="Enter 4-6 digit PIN"
-                value={pin}
-                onChange={handlePinChange}
-                className="text-center text-lg"
-                autoComplete="new-password"
-              />
-            </div>
+      <Animated.View
+        style={[
+          styles.pinContainer,
+          { transform: [{ translateX: shakeAnimation }] },
+        ]}
+      >
+        <View style={styles.pinDotsContainer}>{renderPinDots()}</View>
 
-            <div className="space-y-2">
-              <label htmlFor="confirmPin" className="text-sm font-medium">
-                Confirm PIN
-              </label>
-              <Input
-                id="confirmPin"
-                type="password"
-                placeholder="Confirm your PIN"
-                value={confirmPin}
-                onChange={handleConfirmPinChange}
-                className="text-center text-lg"
-                autoComplete="new-password"
-              />
-            </div>
+        {error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
+      </Animated.View>
 
-            {error && (
-              <div className="flex items-center p-3 space-x-2 text-red-600 bg-red-50 rounded-md">
-                <AlertCircle className="w-5 h-5" />
-                <span className="text-sm">{error}</span>
-              </div>
-            )}
+      <Animated.View
+        style={[styles.successContainer, { opacity: successOpacity }]}
+        pointerEvents={success ? "auto" : "none"}
+      >
+        <View style={styles.successIconContainer}>
+          <Text style={styles.successIcon}>✓</Text>
+        </View>
+        <Text style={styles.successText}>{t("auth.pin.success")}</Text>
+      </Animated.View>
 
-            <div className="flex flex-col space-y-2 pt-2">
-              <Button type="submit" disabled={!pin || !confirmPin}>
-                {t("auth.pin.setup.button")}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={handleReturn}
-                className="flex items-center justify-center gap-2"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                {t("auth.pin.setup.cancel")}
-              </Button>
-            </div>
-          </form>
-        )}
+      <View style={styles.numberPadContainer}>{renderNumberPad()}</View>
 
-        <div className="text-xs text-center text-muted-foreground">
-          Your PIN is stored securely on your device and is never shared.
-        </div>
-      </div>
-    </div>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={onCancel}
+          disabled={success}
+        >
+          <Text style={styles.cancelText}>{t("auth.pin.setup.cancel")}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.continueButton,
+            (stage === "create" && pin.length < minLength) ||
+            (stage === "confirm" && confirmPin.length < minLength)
+              ? styles.continueButtonDisabled
+              : null,
+          ]}
+          onPress={handleContinue}
+          disabled={
+            success ||
+            (stage === "create" && pin.length < minLength) ||
+            (stage === "confirm" && confirmPin.length < minLength)
+          }
+        >
+          <Text style={styles.continueText}>
+            {stage === "create"
+              ? t("auth.pin.setup.button")
+              : t("auth.pin.setup.confirm")}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.securityNote}>{t("auth.pin.stored")}</Text>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 20,
+  },
+  header: {
+    alignItems: "center",
+    marginTop: 40,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 8,
+    color: "#333",
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 30,
+  },
+  pinContainer: {
+    alignItems: "center",
+    marginVertical: 20,
+  },
+  pinDotsContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  pinDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#333",
+    marginHorizontal: 8,
+  },
+  pinDotFilled: {
+    backgroundColor: "#333",
+  },
+  errorContainer: {
+    alignItems: "center",
+    marginTop: 10,
+  },
+  errorText: {
+    color: "#e53935",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  numberPadContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    width: "100%",
+    maxWidth: 300,
+    marginBottom: 20,
+  },
+  numberButton: {
+    width: "33.3%",
+    height: 70,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 10,
+  },
+  numberText: {
+    fontSize: 28,
+    fontWeight: "500",
+    color: "#333",
+  },
+  buttonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  cancelButton: {
+    padding: 12,
+  },
+  cancelText: {
+    color: "#666",
+    fontSize: 16,
+  },
+  continueButton: {
+    backgroundColor: "#2196f3",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  continueButtonDisabled: {
+    backgroundColor: "#bdbdbd",
+  },
+  continueText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  securityNote: {
+    fontSize: 12,
+    color: "#999",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  successContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  successIconContainer: {
+    backgroundColor: "white",
+    borderRadius: 50,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+    marginBottom: 16,
+  },
+  successIcon: {
+    fontSize: 40,
+    color: "#4caf50",
+  },
+  successText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#4caf50",
+    marginTop: 16,
+  },
+});
 
 export default PINSetup;

@@ -1,5 +1,4 @@
-// This is a web-compatible version of SecureStorage
-// For a real app, you would use a more secure storage solution
+// Web fallback for SecureStorage.native.ts
 
 // Key for storing the PIN
 const PIN_KEY = "secure_implant_pass_pin";
