@@ -1,0 +1,21 @@
+{
+  "name": "Implant Pass",
+  "short_name": "Implant Pass",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "description": "Secure Digital Implant Pass for medical implant information",
+  "icons": [
+    {
+      "src": "swiss-cross-logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "swiss-cross-logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
